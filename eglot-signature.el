@@ -120,13 +120,6 @@
   "Face for highlighting the active parameter."
   :group 'eglot-signature)
 
-;; TODO: foreground from default face
-(defface eglot-signature-frame-border
-  '((((background light)) (:foreground "#000000"))
-    (((background dark)) (:foreground "#ffffff")))
-  "Face for the signature frame border."
-  :group 'eglot-signature)
-
 (defface eglot-signature-doc-separator-face
   '((t (:overline t :extend t :height 0.1)))
   "Face for the signature document separator line."
@@ -512,8 +505,7 @@ Results are cached in `eglot-signature--cached-frame-size'."
 (defun eglot-signature--make-frame (x y)
   "Create a child frame for signature help at X Y coordinates.
 Returns the new frame configured as a popup child frame."
-  (let* ((border-color (or (face-foreground 'eglot-signature-frame-border nil t)
-                           (face-foreground 'default nil t)))
+  (let* ((border-color (face-foreground 'default nil t))
          (parent (window-frame))
          (frame (make-frame
                  `((parent-frame . ,parent)
@@ -560,7 +552,6 @@ Returns (x . y) cons cell, or nil if position cannot be determined."
 ;; 1. frame size width/height limit
 ;; 2. tooltips
 ;; 3. (x,y)
-;; 4. popup map
 (defun eglot-signature--frame-geometry (&optional sig-buffer)
   "Calculate frame position and size for signature help.
 Returns list (x y width-pixel height-pixel).
