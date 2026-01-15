@@ -307,9 +307,10 @@ lifetime and interactivity of the signature frame."
 
     ;; Clear doc buffer
     (when (buffer-live-p doc-buf)
-      (with-current-buffer doc-buf
-        (let ((inhibit-read-only t))
-          (erase-buffer))))
+      (unless (get-buffer-window doc-buf)
+        (with-current-buffer doc-buf
+          (let ((inhibit-read-only t))
+            (erase-buffer)))))
 
     ;; Remove hooks from active buffer
     (when (buffer-live-p active-buf)
@@ -550,7 +551,8 @@ Makes frame visible."
 (defun eglot-signature--make-frame (x y)
   "Create a child frame for signature help at X Y coordinates.
 Returns the new frame configured as a popup child frame."
-  (let* ((parent (window-frame))
+  (let* ((border-color (face-foreground 'default nil t))
+         (parent (window-frame))
          (frame (make-frame
                  `((parent-frame . ,parent)
                    (user-position t)
@@ -580,6 +582,8 @@ Returns the new frame configured as a popup child frame."
                    (skip-taskbar . t)
                    (z-group . above)))))
     (setq eglot-signature--active-frame frame)
+    (set-face-attribute 'internal-border frame :background border-color)
+    (set-face-attribute 'child-frame-border frame :background border-color)
     frame))
 
 (defun eglot-signature--render-sig-frame-at-point (&optional sig-buf)
@@ -599,14 +603,9 @@ Creates or updates child frame with content from SIG-BUFFER."
          (y (nth 1 geometry))
          (width-pixel (nth 2 geometry))
          (height-pixel (nth 3 geometry))
-         (frame eglot-signature--active-frame)
-         (border-color (face-foreground 'default nil t)))
+         (frame eglot-signature--active-frame))
     (unless (and frame (frame-live-p frame))
       (setq frame (eglot-signature--make-frame x y)))
-    (unless (equal (face-background 'internal-border frame t) border-color)
-      (set-face-attribute 'internal-border frame :background border-color))
-    (unless (equal (face-background 'child-frame-border frame t) border-color)
-      (set-face-attribute 'child-frame-border frame :background border-color))
     (let ((win (frame-root-window frame)))
       (when (or sig-changed-p (or (eq (window-buffer win) sig-buf)))
         (set-window-buffer win sig-buf)))
