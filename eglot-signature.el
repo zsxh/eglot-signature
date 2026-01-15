@@ -799,10 +799,12 @@ while a signature is already active (LSP 3.17 SignatureHelpContext)."
     (add-hook 'completion-at-point-functions #'eglot-completion-at-point nil t))
   (eglot-signature--cleanup))
 
+;;;###autoload
 (defun eglot-signature-setup ()
   "Setup Eglot signature support by advising client capabilities."
   (advice-add 'eglot-client-capabilities :around #'eglot-signature--client-capabilities))
 
+;;;###autoload
 (defun eglot-signature-teardown ()
   "Teardown Eglot signature support by removing client capabilities advice."
   (advice-remove 'eglot-client-capabilities #'eglot-signature--client-capabilities))
