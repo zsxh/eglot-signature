@@ -58,6 +58,11 @@
 ;;     (with-eval-after-load 'eglot
 ;;       (eglot-signature-setup)))
 ;;
+;; Integration with cape (optional):
+;;
+;;   (with-eval-after-load 'cape
+;;     (advice-add 'eglot-signature--capf-wrapper :around #'cape-wrap-buster))
+;;
 ;; Customization:
 ;;
 ;;   `eglot-signature-max-height' - Maximum frame height (default: 10 lines)
@@ -257,15 +262,18 @@ Side effects:
          (eglot-signature--quit))
        :deferred :textDocument/signatureHelp))))
 
+(defun eglot-signature--valid-response-p (response)
+  "Check if RESPONSE contains valid signature help data.
+Returns non-nil if RESPONSE has a non-empty signatures array."
+  (when-let* ((sig-list (plist-get response :signatures)))
+    (and (vectorp sig-list)
+         (> (length sig-list) 0))))
+
 (defun eglot-signature--handle-response (response)
   "Handle signature help RESPONSE from server."
-  (if (or (null response)
-          (let ((sig-list (plist-get response :signatures)))
-            (or (null sig-list)
-                (not (vectorp sig-list))
-                (not (length> sig-list 0)))))
-      (eglot-signature--quit)
-    (eglot-signature--active response)))
+  (if (eglot-signature--valid-response-p response)
+      (eglot-signature--active response)
+    (eglot-signature--quit)))
 
 ;; Helper
 
@@ -328,9 +336,15 @@ lifetime and interactivity of the signature frame."
         eglot-signature--doc-separator-lines nil
         eglot-signature--cached-frame-size nil))
 
-(defun eglot-signature--window-change (win)
-  "Handle window/buffer change events.
-WIN is the window that changed."
+(defun eglot-signature--window-change (_win)
+  "Handle window/buffer change events by quitting signature help when appropriate.
+
+WIN is the window that changed (unused, present for hook compatibility).
+
+Quits signature help when all three conditions are met:
+1. Signature help is currently active
+2. The current window/buffer is not valid for signature display
+3. Not switching to the signature documentation buffer"
   (when (and (eglot-signature--sig-active-p)
              (not (eglot-signature--valid-win-buf-p))
              (not (eq (window-buffer (selected-window))
@@ -666,15 +680,15 @@ retrigger, or content-change trigger."
   "Handle post-command for content change retriggers.
 Renders frame and debounces request when point has changed."
   (when (and eglot-signature--active-signature
+             (not (eq (point) eglot-signature--active-point))
              (eglot-signature--sig-active-p)
              (eglot-signature--valid-win-buf-p)
              (not executing-kbd-macro)
              (not (member this-command '(self-insert-command
                                          corfu-insert
                                          company--insert-candidate))))
-    (unless (eq (point) eglot-signature--active-point)
-      (eglot-signature--render-sig-frame-at-point)
-      (eglot-signature--debounce-request :content-change))))
+    (eglot-signature--render-sig-frame-at-point)
+    (eglot-signature--debounce-request :content-change)))
 
 (defun eglot-signature--next-sig (&optional prev)
   "Navigate to next or previous signature.
@@ -686,15 +700,8 @@ Otherwise, navigate to next signature. Wraps around at boundaries."
               (sig-list (plist-get sig-help :signatures))
               (sig-length (and sig-list (vectorp sig-list) (length sig-list)))
               (_ (> sig-length 1))
-              (sig-idx (plist-get sig-help :activeSignature))
-              (sig-idx (max 0 (or sig-idx 0)))
-              (new-sig-idx (if prev (1- sig-idx) (1+ sig-idx)))
-              (new-sig-idx (cond
-                            ((>= new-sig-idx sig-length)
-                             (- new-sig-idx sig-length))
-                            ((< new-sig-idx 0)
-                             (+ new-sig-idx sig-length))
-                            (t new-sig-idx))))
+              (sig-idx (max 0 (or (plist-get sig-help :activeSignature) 0)))
+              (new-sig-idx (mod (if prev (1- sig-idx) (1+ sig-idx)) sig-length)))
     (setf (plist-get sig-help :activeSignature) new-sig-idx)
     (setq eglot-signature--active-signature sig-help)
     (eglot-signature--active sig-help)))
@@ -780,16 +787,11 @@ Returns modified capabilities with contextSupport enabled for signature help."
 
 (defun eglot-signature-setup ()
   "Setup Eglot signature support by advising client capabilities."
-  (advice-add 'eglot-client-capabilities :around #'eglot-signature--client-capabilities)
-  (when (and (bound-and-true-p corfu-mode)
-             (functionp 'cape-wrap-buster))
-    (advice-add 'eglot-signature--capf-wrapper :around #'cape-wrap-buster)))
+  (advice-add 'eglot-client-capabilities :around #'eglot-signature--client-capabilities))
 
 (defun eglot-signature-teardown ()
   "Teardown Eglot signature support by removing client capabilities advice."
-  (advice-remove 'eglot-client-capabilities #'eglot-signature--client-capabilities)
-  (when (advice-member-p #'cape-wrap-buster 'eglot-signature--capf-wrapper)
-    (advice-remove 'eglot-signature--capf-wrapper #'cape-wrap-buster)))
+  (advice-remove 'eglot-client-capabilities #'eglot-signature--client-capabilities))
 
 ;;;###autoload
 (define-minor-mode eglot-signature-mode
