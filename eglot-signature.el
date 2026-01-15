@@ -197,11 +197,11 @@
 (defvar eglot-signature--doc-buffer nil
   "Buffer used to display signature help content.")
 
+(defvar eglot-signature--debounce-timer nil
+  "Debounce timer for signature help requests.")
+
 (defvar-local eglot-signature--provider nil
   "The LSP server provider capability for signature help.")
-
-(defvar-local eglot-signature--debounce-timer nil
-  "Debounce timer for signature help requests.")
 
 ;; Core Request
 
@@ -282,24 +282,20 @@ Side effects:
   "Display signature help popup with SIGNATURE-HELP.
 Sets up transient map and window change hooks to manage the
 lifetime and interactivity of the signature frame."
-  (let ((sig-buffer (eglot-signature--prepare-buffer signature-help))
-        (quit-func eglot-signature--popup-quit-func))
+  (let ((sig-buffer (eglot-signature--prepare-buffer signature-help)))
     (eglot-signature--render-sig-frame-at-point sig-buffer)
     (unless (memq 'eglot-signature--window-change window-buffer-change-functions)
       (add-hook 'window-buffer-change-functions #'eglot-signature--window-change nil t))
     (unless (memq 'eglot-signature--window-change window-selection-change-functions)
       (add-hook 'window-selection-change-functions #'eglot-signature--window-change nil t))
-    (unless (and quit-func (functionp quit-func))
-      (setq eglot-signature--popup-quit-func
-            (set-transient-map eglot-signature-popup-map (lambda () t))))))
+    (set-transient-map eglot-signature-popup-map t)))
 
 (defun eglot-signature--quit ()
   "Quit signature help display."
   (let ((timer eglot-signature--debounce-timer)
         (frame eglot-signature--active-frame)
         (doc-buf eglot-signature--doc-buffer)
-        (active-buf eglot-signature--active-buffer)
-        (quit-func eglot-signature--popup-quit-func))
+        (active-buf eglot-signature--active-buffer))
 
     ;; Cancel pending timer
     (when (timerp timer)
@@ -321,11 +317,7 @@ lifetime and interactivity of the signature frame."
         (remove-hook 'window-buffer-change-functions
                      #'eglot-signature--window-change t)
         (remove-hook 'window-selection-change-functions
-                     #'eglot-signature--window-change t)))
-
-    ;; Exit transient map
-    (when (functionp quit-func)
-      (funcall quit-func)))
+                     #'eglot-signature--window-change t))))
 
   ;; Reset all state
   (setq eglot-signature--debounce-timer nil
@@ -333,8 +325,7 @@ lifetime and interactivity of the signature frame."
         eglot-signature--active-buffer nil
         eglot-signature--active-point nil
         eglot-signature--doc-separator-lines nil
-        eglot-signature--cached-frame-size nil
-        eglot-signature--popup-quit-func nil))
+        eglot-signature--cached-frame-size nil))
 
 (defun eglot-signature--window-change (win)
   "Handle window/buffer change events.
@@ -728,9 +719,6 @@ Otherwise, navigate to next signature. Wraps around at boundaries."
     (define-key map (kbd "C-c s") #'eglot-signature-show)
     map)
   "Keymap for `eglot-signature-mode'.")
-
-(defvar eglot-signature--popup-quit-func nil
-  "Quit function for the transient keymap.")
 
 (defvar eglot-signature-popup-map
   (let ((map (make-sparse-keymap)))
