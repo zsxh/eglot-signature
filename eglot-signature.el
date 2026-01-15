@@ -7,7 +7,7 @@
 ;; URL: https://github.com/zsxh/eglot-signature
 ;; Version: 0.1.0
 ;; Package-Requires: ((emacs "30.1") (compat "30.1.0.0") (eglot "1.17.30") (jsonrpc "1.0.24"))
-;; Keywords: eglot signature tools languages lsp
+;; Keywords: eglot signature tools
 
 ;; This file is not part of GNU Emacs.
 
@@ -88,7 +88,7 @@
 ;;
 ;; Key Bindings:
 ;;
-;;   C-c s - Manually invoke signature help
+;;   C-c C-s - Manually invoke signature help
 ;;
 ;; When signature help is displayed, use the transient keymap:
 ;;
@@ -379,9 +379,9 @@ Handles both string and markup-content (with :value)."
 
 (defun eglot-signature--doc-highlight-label (label active-param)
   "Highlight active parameter in LABEL string.
- Applies `eglot-signature-active-parameter' to the active parameter
- specified by ACTIVE-PARAM (either offset vector or string).
- Returns the highlighted string."
+Applies `eglot-signature-active-parameter' to the active parameter
+specified by ACTIVE-PARAM (either offset vector or string).
+Returns the highlighted string."
   (if (not (stringp label))
       ""
     (with-temp-buffer
@@ -496,7 +496,7 @@ W-EDGES is the window pixel edges (left top right bottom) used for
 width constraint calculation.
 
 Returns (width-pixel . height-pixel) cons cell where width and height
-are in pixels. Height is constrained by `eglot-signature-max-height'
+are in pixels.  Height is constrained by `eglot-signature-max-height'
 and separator lines are accounted for with reduced height contribution.
 
 Results are cached in `eglot-signature--cached-frame-size'."
@@ -553,7 +553,15 @@ Horizontally adjusts to prevent frame overflow beyond frame width."
 
 (defun eglot-signature--update-frame-size-and-position (frame x y width-pixel height-pixel)
   "Update existing FRAME with new position and size.
-Makes frame visible."
+
+FRAME is the child frame to update.
+X, Y are the position in pixels relative to frame origin.
+WIDTH-PIXEL, HEIGHT-PIXEL are the dimensions in pixels.
+
+Uses `set-frame-size-and-position-pixelwise' when available for
+pixel-perfect positioning, otherwise falls back to separate
+`set-frame-size' and `set-frame-position' calls.
+Makes frame visible if it was hidden."
   (if (functionp 'set-frame-size-and-position-pixelwise)
       (let ((frame-resize-pixelwise t))
         (set-frame-size-and-position-pixelwise frame width-pixel height-pixel x y))
@@ -602,7 +610,7 @@ Returns the new frame configured as a popup child frame."
 
 (defun eglot-signature--render-sig-frame-at-point (&optional sig-buf)
   "Render signature help frame at cursor position.
-Creates or updates child frame with content from SIG-BUFFER."
+Creates or updates child frame with content from SIG-BUF."
   (let* ((sig-changed-p (and sig-buf (buffer-live-p sig-buf)))
          (w-edges (window-inside-pixel-edges))
          (buf-size (if sig-changed-p
@@ -693,7 +701,7 @@ Renders frame and debounces request when point has changed."
 (defun eglot-signature--next-sig (&optional prev)
   "Navigate to next or previous signature.
 If PREV is non-nil, navigate to previous signature.
-Otherwise, navigate to next signature. Wraps around at boundaries."
+Otherwise, navigate to next signature.  Wraps around at boundaries."
   (when-let* ((_ (eglot-signature--sig-active-p))
               (_ (eglot-signature--valid-win-buf-p))
               (sig-help eglot-signature--active-signature)
@@ -722,7 +730,7 @@ Otherwise, navigate to next signature. Wraps around at boundaries."
 
 (defvar eglot-signature-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "C-c s") #'eglot-signature-show)
+    (define-key map (kbd "C-c C-s") #'eglot-signature-show)
     map)
   "Keymap for `eglot-signature-mode'.")
 
@@ -739,7 +747,13 @@ Otherwise, navigate to next signature. Wraps around at boundaries."
 
 (defun eglot-signature--client-capabilities (orig-fn &rest args)
   "Advice around `eglot-client-capabilities' to add signatureHelp contextSupport.
-Returns modified capabilities with contextSupport enabled for signature help."
+
+ORIG-FN is the original `eglot-client-capabilities' function.
+ARGS are the arguments passed to ORIG-FN.
+
+Returns modified LSP client capabilities with `contextSupport' enabled
+for signature help.  This allows retriggering signature help requests
+while a signature is already active (LSP 3.17 SignatureHelpContext)."
   (let* ((caps (apply orig-fn args))
          (text-doc (plist-get caps :textDocument))
          (sig-help (plist-get text-doc :signatureHelp)))

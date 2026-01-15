@@ -59,7 +59,7 @@ Once enabled, signature help appears automatically when typing function argument
 
 | Key | Command | Action |
 |-----|---------|--------|
-| `C-c s` | `eglot-signature-show` | Manually invoke signature help |
+| `C-c C-s` | `eglot-signature-show` | Manually invoke signature help |
 
 #### Transient (when signature popup is displayed)
 
