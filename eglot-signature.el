@@ -182,9 +182,6 @@
 (defvar eglot-signature--active-frame nil
   "Active signature frame.")
 
-(defvar eglot-signature--debounce-timer nil
-  "Debounce timer for signature help requests.")
-
 (defvar eglot-signature--cached-frame-size nil
   "Cached frame size (width-pixel . height-pixel).")
 
@@ -200,7 +197,11 @@
 (defvar eglot-signature--doc-buffer nil
   "Buffer used to display signature help content.")
 
-(defvar-local eglot-signature--provider nil)
+(defvar-local eglot-signature--provider nil
+  "The LSP server provider capability for signature help.")
+
+(defvar-local eglot-signature--debounce-timer nil
+  "Debounce timer for signature help requests.")
 
 ;; Core Request
 
