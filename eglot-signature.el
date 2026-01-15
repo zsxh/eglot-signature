@@ -43,6 +43,7 @@
 ;;
 ;; Usage:
 ;;
+;;   (require 'eglot)
 ;;   (require 'eglot-signature)
 ;;   (eglot-signature-setup)
 ;;   (add-hook 'eglot-managed-mode-hook 'eglot-signature-mode)
@@ -50,14 +51,17 @@
 ;; Or use `use-package':
 ;;
 ;;   (use-package eglot-signature
-;;     :config
-;;     (eglot-signature-setup)
-;;     :hook (eglot-managed-mode . eglot-signature-mode))
+;;     :vc (:url "https://github.com/zsxh/eglot-signature"
+;;         :rev :newest)
+;;     :hook (eglot-managed-mode . eglot-signature-mode)
+;;     :init
+;;     (with-eval-after-load 'eglot
+;;       (eglot-signature-setup)))
 ;;
 ;; Customization:
 ;;
 ;;   `eglot-signature-max-height' - Maximum frame height (default: 10 lines)
-;;   `eglot-signature-max-width' - Maximum frame width (default: 70 chars)
+;;   `eglot-signature-max-width' - Maximum frame width (default: 60 chars)
 ;;   `eglot-signature-show-doc' - Show documentation (default: t)
 ;;   `eglot-signature-show-param-doc' - Show parameter documentation (default: t)
 ;;   `eglot-signature-debounce-delay' - Request debounce delay in seconds (default: 0.2)
@@ -65,7 +69,7 @@
 ;; Faces:
 ;;
 ;;   `eglot-signature-active-parameter' - Face for active parameter highlighting
-;;   `eglot-signature-frame-border' - Face for the signature frame border
+;;   `eglot-signature-doc-default' - Face for the signature help display (background, colors)
 ;;   `eglot-signature-doc-separator-face' - Face for document separator line
 ;;
 ;; Commands:
@@ -79,9 +83,10 @@
 ;;
 ;; Key Bindings:
 ;;
+;;   C-c s - Manually invoke signature help
+;;
 ;; When signature help is displayed, use the transient keymap:
 ;;
-;;   M-S-SPC (macOS) or C-S-SPC - Manually invoke signature help
 ;;   <up> / <down> - Navigate between signature overloads
 ;;   C-g / <escape> - Hide signature help
 ;;
@@ -120,6 +125,14 @@
   "Face for highlighting the active parameter."
   :group 'eglot-signature)
 
+(defface eglot-signature-doc-default
+  '((((class color) (min-colors 88) (background dark)) :background "#191a1b")
+    (((class color) (min-colors 88) (background light)) :background "#f0f0f0")
+    (((background dark)) :background "gray" :foreground "black")
+    (t :background "gray"))
+  "Face for the signature help frame."
+  :group 'eglot-signature)
+
 (defface eglot-signature-doc-separator-face
   '((t (:overline t :extend t :height 0.1)))
   "Face for the signature document separator line."
@@ -132,7 +145,7 @@
   :type 'integer
   :group 'eglot-signature)
 
-(defcustom eglot-signature-max-width 70
+(defcustom eglot-signature-max-width 60
   "Maximum width of the signature frame in characters."
   :type 'integer
   :group 'eglot-signature)
@@ -144,11 +157,6 @@
 
 (defcustom eglot-signature-show-param-doc t
   "Whether to show parameter documentation in signature help."
-  :type 'boolean
-  :group 'eglot-signature)
-
-(defcustom eglot-signature-show-tooltips t
-  "Whether to show tool tips in signature help."
   :type 'boolean
   :group 'eglot-signature)
 
@@ -274,15 +282,15 @@ Side effects:
 Sets up transient map and window change hooks to manage the
 lifetime and interactivity of the signature frame."
   (let ((sig-buffer (eglot-signature--prepare-buffer signature-help))
-        (quit-func eglot-signature--transient-map-quit-func))
+        (quit-func eglot-signature--popup-quit-func))
     (eglot-signature--render-sig-frame-at-point sig-buffer)
     (unless (memq 'eglot-signature--window-change window-buffer-change-functions)
       (add-hook 'window-buffer-change-functions #'eglot-signature--window-change nil t))
     (unless (memq 'eglot-signature--window-change window-selection-change-functions)
       (add-hook 'window-selection-change-functions #'eglot-signature--window-change nil t))
     (unless (and quit-func (functionp quit-func))
-      (setq eglot-signature--transient-map-quit-func
-            (set-transient-map eglot-signature-transient-map (lambda () t))))))
+      (setq eglot-signature--popup-quit-func
+            (set-transient-map eglot-signature-popup-map (lambda () t))))))
 
 (defun eglot-signature--quit ()
   "Quit signature help display."
@@ -290,7 +298,7 @@ lifetime and interactivity of the signature frame."
         (frame eglot-signature--active-frame)
         (doc-buf eglot-signature--doc-buffer)
         (active-buf eglot-signature--active-buffer)
-        (quit-func eglot-signature--transient-map-quit-func))
+        (quit-func eglot-signature--popup-quit-func))
 
     ;; Cancel pending timer
     (when (timerp timer)
@@ -325,7 +333,7 @@ lifetime and interactivity of the signature frame."
         eglot-signature--active-point nil
         eglot-signature--doc-separator-lines nil
         eglot-signature--cached-frame-size nil
-        eglot-signature--transient-map-quit-func nil))
+        eglot-signature--popup-quit-func nil))
 
 (defun eglot-signature--window-change (win)
   "Handle window/buffer change events.
@@ -404,19 +412,24 @@ Handles both string and markup-content (with :value)."
 
     (unless (and buffer (buffer-live-p buffer))
       (setq buffer (get-buffer-create eglot-signature--doc-buffer-name))
-      (setq eglot-signature--doc-buffer buffer))
+      (setq eglot-signature--doc-buffer buffer)
+      (let ((fr face-remapping-alist))
+        (with-current-buffer buffer
+          (setq-local header-line-format nil
+                      mode-line-format nil
+                      left-fringe-width 0
+                      right-fringe-width 0
+                      left-margin-width 0
+                      right-margin-width 0
+                      fringes-outside-margins 0)
+          (setq-local face-remapping-alist (copy-tree fr))
+          (cl-pushnew 'eglot-signature-doc-default
+                      (alist-get 'default face-remapping-alist)))))
 
     (with-current-buffer buffer
-      (setq-local header-line-format nil)
-      (setq-local mode-line-format
-                  (when eglot-signature-show-tooltips
-                    (concat sig-counter
-                            " "
-                            (eglot-signature--show-transient-map))))
       (setq eglot-signature--doc-separator-lines 0)
       (with-silent-modifications
         (erase-buffer)
-
         (save-excursion
           (when sig
             ;; Format and insert signature
@@ -432,10 +445,7 @@ Handles both string and markup-content (with :value)."
                    (fill-column eglot-signature-max-width))
 
               ;; Add signature counter
-              ;; (when (> (length sig-list) 1)
-              ;;   (insert (format "[%d/%d] " (1+ active-sig-idx) (length sig-list))))
-              (when (and (not eglot-signature-show-tooltips)
-                         (sig-counter))
+              (when sig-counter
                 (insert sig-counter " "))
 
               ;; Add signature label
@@ -472,41 +482,83 @@ Handles both string and markup-content (with :value)."
                 (forward-line 1)))))))
     buffer))
 
-(defun eglot-signature--buffer-frame-size (&optional buffer)
+(defun eglot-signature--buffer-frame-size (buffer w-edges)
   "Calculate required frame size for BUFFER content.
-Returns (width-pixel . height-pixel) cons cell, respecting
-`eglot-signature-max-width' and `eglot-signature-max-height'.
+
+W-EDGES is the window pixel edges (left top right bottom) used for
+width constraint calculation.
+
+Returns (width-pixel . height-pixel) cons cell where width and height
+are in pixels. Height is constrained by `eglot-signature-max-height'
+and separator lines are accounted for with reduced height contribution.
+
 Results are cached in `eglot-signature--cached-frame-size'."
-  (if (and buffer (buffer-live-p buffer))
-      (with-current-buffer buffer
-        (save-excursion
-          (let* ((width 0)
-                 (height (- (count-lines (point-min) (point-max))
-                            (or eglot-signature--doc-separator-lines 0)))
-                 (char-height (frame-char-height))
-                 (char-width (frame-char-width)))
-            (goto-char (point-min))
-            (while (not (eobp))
-              (end-of-line)
-              (setq width (max width (current-column)))
-              (forward-line 1))
-            (setq width (min width eglot-signature-max-width))
-            (when (< width 30)
-              (setq-local mode-line-format nil))
-            (when mode-line-format
-              (setq height (1+ height)))
-            (setq height (min height eglot-signature-max-height))
-            (let ((width-pixel (* char-width width))
-                  (height-pixel (* char-height height)))
-              (setq eglot-signature--cached-frame-size
-                    (cons width-pixel height-pixel))))))
-    eglot-signature--cached-frame-size))
+  (when (and buffer (buffer-live-p buffer))
+    (with-current-buffer buffer
+      (cl-letf* (((window-dedicated-p) nil)
+                 ((window-buffer) (current-buffer))
+                 (char-height (default-font-height))
+                 (max-height-pixel
+                  (+ (* char-height eglot-signature-max-height)
+                     (ceiling (* eglot-signature--doc-separator-lines
+                                 char-height
+                                 0.1))))
+                 (w-width (- (nth 2 w-edges) (nth 0 w-edges)))
+                 (w-height (- (nth 3 w-edges) (nth 1 w-edges)))
+                 (size (window-text-pixel-size
+                        nil (point-min) (point-max)
+                        w-width (min (/ w-height 3)
+                                     max-height-pixel))))
+        (setq eglot-signature--cached-frame-size size)
+        size))))
+
+(defun eglot-signature--frame-geometry (buf-size cursor-xy)
+  "Calculate frame position and size for signature help.
+
+BUF-SIZE is (width-pixel . height-pixel) cons cell with the required
+frame dimensions in pixels.
+
+CURSOR-XY is (x . y) cons cell with cursor position in pixels relative
+to window origin.
+
+Returns list (x y width-pixel height-pixel) with frame geometry:
+- x, y: Frame position in pixels (relative to frame origin)
+- width-pixel, height-pixel: Frame dimensions in pixels
+
+Positions frame above cursor if space is available, otherwise below.
+Horizontally adjusts to prevent frame overflow beyond frame width."
+  (let* ((line-height (default-line-height))
+         (size buf-size)
+         (width-pixel (car size))
+         (height-pixel (cdr size))
+         (cursor-x (car cursor-xy))
+         (cursor-y (cdr cursor-xy))
+         (fw (frame-pixel-width))
+         (padding 4)
+         (x (if (> (+ cursor-x width-pixel padding) fw)
+                (- fw width-pixel padding)
+              cursor-x))
+         (cursor-above-y (- cursor-y height-pixel padding))
+         (y (if (> cursor-above-y line-height)
+                cursor-above-y
+              (+ cursor-y line-height padding))))
+    (list x y width-pixel height-pixel)))
+
+(defun eglot-signature--update-frame-size-and-position (frame x y width-pixel height-pixel)
+  "Update existing FRAME with new position and size.
+Makes frame visible."
+  (if (functionp 'set-frame-size-and-position-pixelwise)
+      (let ((frame-resize-pixelwise t))
+        (set-frame-size-and-position-pixelwise frame width-pixel height-pixel x y))
+    (set-frame-size frame width-pixel height-pixel t)
+    (set-frame-position frame x y))
+  (unless (frame-visible-p frame)
+    (make-frame-visible frame)))
 
 (defun eglot-signature--make-frame (x y)
   "Create a child frame for signature help at X Y coordinates.
 Returns the new frame configured as a popup child frame."
-  (let* ((border-color (face-foreground 'default nil t))
-         (parent (window-frame))
+  (let* ((parent (window-frame))
          (frame (make-frame
                  `((parent-frame . ,parent)
                    (user-position t)
@@ -515,6 +567,8 @@ Returns the new frame configured as a popup child frame."
                    (top . ,y)
                    (visibility . nil)
                    (child-frame-border-width . 1)
+                   (border-width . 0)
+                   (outer-border-width . 0)
                    (min-width . 0)
                    (min-height . 0)
                    (tool-bar-lines . 0)
@@ -533,69 +587,41 @@ Returns the new frame configured as a popup child frame."
                    (desktop-dont-save . t)
                    (skip-taskbar . t)
                    (z-group . above)))))
-    (set-face-attribute 'child-frame-border frame :background border-color)
+    (setq eglot-signature--active-frame frame)
     frame))
 
-(defun eglot-signature--cursor-x-y (&optional point)
-  "Get cursor position in pixels relative to window.
-Returns (x . y) cons cell, or nil if position cannot be determined."
-  (when-let* ((edges (window-inside-pixel-edges))
-              (win-x (nth 0 edges))
-              (win-y (nth 1 edges))
-              (pos (posn-at-point (or point (point))))
-              (xy (posn-x-y pos))
-              (x (+ win-x (car xy)))
-              (y (+ win-y (cdr xy))))
-    (cons x y)))
-
-;; TODO: Rework
-;; 1. frame size width/height limit
-;; 2. tooltips
-;; 3. (x,y)
-(defun eglot-signature--frame-geometry (&optional sig-buffer)
-  "Calculate frame position and size for signature help.
-Returns list (x y width-pixel height-pixel).
-Positions frame above cursor if space available, otherwise below."
-  (when-let* ((line-height (line-pixel-height))
-              (size (eglot-signature--buffer-frame-size sig-buffer))
-              (width-pixel (car size))
-              (height-pixel (cdr size))
-              (xy (eglot-signature--cursor-x-y))
-              (x (car xy))
-              (cursor-y (cdr xy))
-              (cursor-above-y (- cursor-y height-pixel 4))
-              (y (if (> cursor-above-y line-height)
-                     cursor-above-y
-                   (+ cursor-y line-height 4))))
-    (list x y width-pixel height-pixel)))
-
-(defun eglot-signature--update-frame-size-and-position (frame x y width-pixel height-pixel)
-  "Update existing FRAME with new position and size.
-Makes frame visible."
-  (if (functionp 'set-frame-size-and-position-pixelwise)
-      (let ((frame-resize-pixelwise t))
-        (set-frame-size-and-position-pixelwise frame width-pixel height-pixel x y))
-    (set-frame-size frame width-pixel height-pixel t)
-    (set-frame-position frame x y))
-  (unless (frame-visible-p frame)
-    (make-frame-visible frame)))
-
-(defun eglot-signature--render-sig-frame-at-point (&optional sig-buffer)
+(defun eglot-signature--render-sig-frame-at-point (&optional sig-buf)
   "Render signature help frame at cursor position.
 Creates or updates child frame with content from SIG-BUFFER."
-  (when-let* ((geometry (eglot-signature--frame-geometry sig-buffer))
-              (x (nth 0 geometry))
-              (y (nth 1 geometry))
-              (width-pixel (nth 2 geometry))
-              (height-pixel (nth 3 geometry)))
-
-    (let ((frame eglot-signature--active-frame))
-      (unless (and frame (frame-live-p frame))
-        (setq frame (eglot-signature--make-frame x y))
-        (setq eglot-signature--active-frame frame))
-      (when (and sig-buffer (buffer-live-p sig-buffer))
-        (set-window-buffer (frame-root-window frame) sig-buffer))
-      (eglot-signature--update-frame-size-and-position frame x y width-pixel height-pixel))))
+  (let* ((sig-changed-p (and sig-buf (buffer-live-p sig-buf)))
+         (w-edges (window-inside-pixel-edges))
+         (buf-size (if sig-changed-p
+                       (eglot-signature--buffer-frame-size sig-buf w-edges)
+                     eglot-signature--cached-frame-size))
+         (cursor-xy (let* ((xy (posn-x-y (posn-at-point)))
+                           (x (+ (nth 0 w-edges) (car xy)))
+                           (y (+ (nth 1 w-edges) (cdr xy))))
+                      (cons x y)))
+         (geometry (eglot-signature--frame-geometry buf-size cursor-xy))
+         (x (nth 0 geometry))
+         (y (nth 1 geometry))
+         (width-pixel (nth 2 geometry))
+         (height-pixel (nth 3 geometry))
+         (frame eglot-signature--active-frame)
+         (border-color (face-foreground 'default nil t)))
+    (unless (and frame (frame-live-p frame))
+      (setq frame (eglot-signature--make-frame x y)))
+    (unless (equal (face-background 'internal-border frame t) border-color)
+      (set-face-attribute 'internal-border frame :background border-color))
+    (unless (equal (face-background 'child-frame-border frame t) border-color)
+      (set-face-attribute 'child-frame-border frame :background border-color))
+    (let ((win (frame-root-window frame)))
+      (when (or sig-changed-p (or (eq (window-buffer win) sig-buf)))
+        (set-window-buffer win sig-buf)))
+    (if sig-changed-p
+        (eglot-signature--update-frame-size-and-position
+         frame x y width-pixel height-pixel)
+      (set-frame-position frame x y))))
 
 ;; Debounce Helper
 
@@ -698,22 +724,14 @@ Otherwise, navigate to next signature. Wraps around at boundaries."
 
 (defvar eglot-signature-mode-map
   (let ((map (make-sparse-keymap)))
-    (if (eq system-type 'darwin)
-        (define-key map (kbd "S-s-SPC") #'eglot-signature-show)
-      (define-key map (kbd "C-S-SPC") #'eglot-signature-show))
+    (define-key map (kbd "C-c s") #'eglot-signature-show)
     map)
   "Keymap for `eglot-signature-mode'.")
 
-(defvar eglot-signature--transient-map-quit-func nil
+(defvar eglot-signature--popup-quit-func nil
   "Quit function for the transient keymap.")
 
-(defvar eglot-signature--transient-map-names
-  '((eglot-signature-prev . "prev")
-    (eglot-signature-next . "next")
-    (eglot-signature-quit . "quit"))
-  "Mapping of transient map commands to display names.")
-
-(defvar eglot-signature-transient-map
+(defvar eglot-signature-popup-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "<up>") #'eglot-signature-prev)
     (define-key map (kbd "<down>") #'eglot-signature-next)
@@ -721,27 +739,6 @@ Otherwise, navigate to next signature. Wraps around at boundaries."
     (define-key map (kbd "C-g") #'eglot-signature-quit)
     map)
   "Transient keymap active while signature help is displayed.")
-
-(defun eglot-signature--show-map (map &optional binding-names)
-  "Display key bindings from MAP.
-BINDING-NAMES maps functions to display names. Shows message with
-available commands."
-  (let (bindings)
-    (map-keymap
-     (lambda (event binding)
-       (let ((name (or (and binding-names (alist-get binding binding-names))
-                       binding)))
-         (push (format "%s:%s" name (key-description (vector event)))
-               bindings)))
-     map)
-    (mapconcat 'identity bindings " | ")))
-
-(defun eglot-signature--show-transient-map ()
-  "Display available key bindings in the transient map.
-Shows a message with navigation commands for signature help."
-  (eglot-signature--show-map
-   eglot-signature-transient-map
-   eglot-signature--transient-map-names))
 
 ;; Minor Mode
 
@@ -777,7 +774,7 @@ Returns modified capabilities with contextSupport enabled for signature help."
 
 (defun eglot-signature--enable ()
   "Enable signature help in current buffer."
-  (setq eglot-signature--provider (eglot-server-capable :signatureHelpProvider))
+  (setq-local eglot-signature--provider (eglot-server-capable :signatureHelpProvider))
   (remove-hook 'completion-at-point-functions #'eglot-completion-at-point t)
   (add-hook 'completion-at-point-functions #'eglot-signature--capf-wrapper nil t)
   (add-hook 'post-self-insert-hook #'eglot-signature--on-self-insert nil t)
@@ -796,12 +793,15 @@ Returns modified capabilities with contextSupport enabled for signature help."
 (defun eglot-signature-setup ()
   "Setup Eglot signature support by advising client capabilities."
   (advice-add 'eglot-client-capabilities :around #'eglot-signature--client-capabilities)
-  (when (functionp 'cape-wrap-buster)
+  (when (and (bound-and-true-p corfu-mode)
+             (functionp 'cape-wrap-buster))
     (advice-add 'eglot-signature--capf-wrapper :around #'cape-wrap-buster)))
 
 (defun eglot-signature-teardown ()
   "Teardown Eglot signature support by removing client capabilities advice."
-  (advice-remove 'eglot-client-capabilities #'eglot-signature--client-capabilities))
+  (advice-remove 'eglot-client-capabilities #'eglot-signature--client-capabilities)
+  (when (advice-member-p #'cape-wrap-buster 'eglot-signature--capf-wrapper)
+    (advice-remove 'eglot-signature--capf-wrapper #'cape-wrap-buster)))
 
 ;;;###autoload
 (define-minor-mode eglot-signature-mode
