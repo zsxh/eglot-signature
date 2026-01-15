@@ -2,6 +2,10 @@
 
 Signature help (parameter hints) for [Eglot](https://github.com/joaotavora/eglot).
 
+## Screenshot
+
+![Screenshot](https://github.com/zsxh/eglot-signature/raw/refs/heads/assets/screenshot.mp4)
+
 ## Description
 
 `eglot-signature` implements the LSP Signature Help protocol to display function signatures with active parameter highlighting when typing function arguments in a child frame popup.
