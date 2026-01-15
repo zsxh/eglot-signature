@@ -1,8 +1,99 @@
-# eglot-signature.el (WIP)
+# eglot-signature (WIP)
 
-Signature support for Eglot, displaying LSP signature information at a given cursor position.
+Signature help (parameter hints) for [Eglot](https://github.com/joaotavora/eglot).
 
-TODO: https://www.google.com/search?smstk=ChhoVHF2K0pTTXRVNWZJcUIvdWIrL25Gcz0QAQ%3D%3D&smstidx=3&q=%E4%BD%A0%E6%98%AF%E4%B8%80%E4%BD%8Demacs%E4%B8%93%E5%AE%B6%EF%BC%8C%E5%AE%9E%E7%8E%B0%E8%BF%99%E4%B9%88%E4%B8%80%E4%B8%AA%E5%8A%9F%E8%83%BD%EF%BC%9A%0Astate+S1+-%3E+call+function+A+-%3E+state+S2+%26+some+key+bindings+-%3E+call+function+B+-%3E+state+S1+%26+restore+key+bindings%0A%0A%E4%B8%8D%E8%A6%81%E7%94%A8overlay&udm=50&csuir=1&aep=34&kgs=2eefe03e4a2aac22&shndl=37&shmd=H4sIAAAAAAAA_3WQv0vDQBzFKW75E5xuchDSGAcHEUH_BcE1XJPzGkzuwt3V2k2pYCxWEVvRKq0uUh2i2FJSbHT378ivrf-CCTgoxeXL4z0-PL5PGs5J2_HdSfz2kN2o0Y0H7dR74kjIgkHCTUSEbEMn9T6SwEs6R5kO_YPkdpi0enHbnU5OM50eD2L3IvTfo0Y_Or-KR27k1efXykI4fFVRqtVqEXMBhakXdWorHEGml2WHUZsq0LQ1XoYMaaJcsUsEmlbRIXhxXAiD-_j6JWsLgyayoc5D_zLyRlll5HWTs9f08yYcu3nuP0eNXloPppOOlPcgsKUCeR3o0LLAToXowqQEbOTWT7wMFgCnNgK7qAZKJjFMgvkssvkLUTOEIS4o-0tJUug308fDpNWne4hZsPZV0P573bQhRlwpZdvmsIIpxRbCGmbQyLdW1P0ZT8t4YkBmaOrKkuHk63wDta8K9bcBAAA&shmds=v1_ATWGeeNjPOCQrsRoIyTBtkGs4lVjgoQsdAUoMkMiIhfVQlEjkA&source=sh/x/aim/m1/1
+## Description
 
-(add-hook 'eglot-server-initialized-hook 'eglot-signature-mode)
-(remove-hook 'eglot-server-initialized-hook 'eglot-signature-mode)
+`eglot-signature` implements the LSP Signature Help protocol to display function signatures with active parameter highlighting when typing function arguments in a child frame popup.
+
+## Features
+
+- Automatic triggering on trigger characters (e.g., `(`, `,`)
+- Active parameter highlighting
+- Multi-signature overload navigation
+- Function and parameter documentation display
+- Child frame popup display
+- Context support for retriggering signature help
+
+## Installation
+
+### Manual
+
+```elisp
+(require 'eglot)
+(require 'eglot-signature)
+(eglot-signature-setup)
+(add-hook 'eglot-managed-mode-hook 'eglot-signature-mode)
+```
+
+### use-package
+
+```elisp
+(use-package eglot-signature
+  :vc (:url "https://github.com/zsxh/eglot-signature"
+      :rev :newest)
+  :hook (eglot-managed-mode . eglot-signature-mode)
+  :init
+  (with-eval-after-load 'eglot
+    (eglot-signature-setup)))
+```
+
+### Integration with cape (optional)
+
+```elisp
+(with-eval-after-load 'cape
+  (advice-add 'eglot-signature--capf-wrapper :around #'cape-wrap-buster))
+```
+
+## Usage
+
+Once enabled, signature help appears automatically when typing function arguments.
+
+### Key Bindings
+
+#### Global (when `eglot-signature-mode` is enabled)
+
+| Key | Command | Action |
+|-----|---------|--------|
+| `C-c s` | `eglot-signature-show` | Manually invoke signature help |
+
+#### Transient (when signature popup is displayed)
+
+| Key | Command | Action |
+|-----|---------|--------|
+| `<up>` / `<down>` | `eglot-signature-prev` / `eglot-signature-next` | Navigate between signature overloads |
+| `C-g` / `<escape>` | `eglot-signature-quit` | Hide signature help |
+
+### Commands
+
+- `eglot-signature-toggle` - Toggle signature help mode
+- `eglot-signature-show` - Manually show signature help at point
+- `eglot-signature-quit` - Quit signature help
+- `eglot-signature-next` - Navigate to next signature overload
+- `eglot-signature-prev` - Navigate to previous signature overload
+- `eglot-signature-switch-to-doc-buffer` - Switch to documentation buffer
+
+## Customization
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `eglot-signature-max-height` | 10 | Maximum frame height in lines |
+| `eglot-signature-max-width` | 60 | Maximum frame width in characters |
+| `eglot-signature-show-doc` | t | Show documentation |
+| `eglot-signature-show-param-doc` | t | Show parameter documentation |
+| `eglot-signature-debounce-delay` | 0.2 | Request debounce delay in seconds |
+
+## Requirements
+
+- Emacs 30.1 or later
+- compat 30.1.0.0 or later
+- eglot 1.17.30 or later
+- jsonrpc 1.0.24 or later
+
+## License
+
+GPL-3.0-or-later
+
+## See Also
+
+- [LSP Signature Help Specification](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/)
