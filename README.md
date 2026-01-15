@@ -4,7 +4,8 @@ Signature help (parameter hints) for [Eglot](https://github.com/joaotavora/eglot
 
 ## Screenshot
 
-![Screenshot](https://github.com/zsxh/eglot-signature/raw/refs/heads/assets/screenshot.mp4)
+<video src="https://github.com/zsxh/eglot-signature/raw/refs/heads/assets/screenshot.mp4" controls="controls" width="70%" height="auto">
+</video>
 
 ## Description
 
