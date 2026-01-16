@@ -570,8 +570,8 @@ Makes frame visible if it was hidden."
   (unless (frame-visible-p frame)
     (make-frame-visible frame)))
 
-(defun eglot-signature--make-frame (x y)
-  "Create a child frame for signature help at X Y coordinates.
+(defun eglot-signature--make-frame ()
+  "Create a child frame for signature help.
 Returns the new frame configured as a popup child frame."
   (let* ((border-color (face-foreground 'default nil t))
          (parent (window-frame))
@@ -579,8 +579,6 @@ Returns the new frame configured as a popup child frame."
                  `((parent-frame . ,parent)
                    (user-position t)
                    (minibuffer . ,(minibuffer-window parent))
-                   (left . ,x)
-                   (top . ,y)
                    (visibility . nil)
                    (child-frame-border-width . 1)
                    (border-width . 0)
@@ -627,7 +625,7 @@ Creates or updates child frame with content from SIG-BUF."
          (height-pixel (nth 3 geometry))
          (frame eglot-signature--active-frame))
     (unless (and frame (frame-live-p frame))
-      (setq frame (eglot-signature--make-frame x y)))
+      (setq frame (eglot-signature--make-frame)))
     (let ((win (frame-root-window frame)))
       (when (or sig-changed-p (or (eq (window-buffer win) sig-buf)))
         (set-window-buffer win sig-buf)))
