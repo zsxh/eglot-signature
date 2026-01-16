@@ -288,7 +288,7 @@ Returns non-nil if RESPONSE has a non-empty signatures array."
 
 (defun eglot-signature--active (signature-help)
   "Display signature help popup with SIGNATURE-HELP.
-Sets up transient map and window change hooks to manage the
+Sets up transient mode and window change hooks to manage the
 lifetime and interactivity of the signature frame."
   (let ((sig-buffer (eglot-signature--prepare-buffer signature-help)))
     (eglot-signature--render-sig-frame-at-point sig-buffer)
@@ -296,7 +296,8 @@ lifetime and interactivity of the signature frame."
       (add-hook 'window-buffer-change-functions #'eglot-signature--window-change nil t))
     (unless (memq 'eglot-signature--window-change window-selection-change-functions)
       (add-hook 'window-selection-change-functions #'eglot-signature--window-change nil t))
-    (set-transient-map eglot-signature-popup-map t)))
+    (unless eglot-signature-popup-mode
+      (eglot-signature-popup-mode 1))))
 
 (defun eglot-signature--quit ()
   "Quit signature help display."
@@ -327,6 +328,10 @@ lifetime and interactivity of the signature frame."
                      #'eglot-signature--window-change t)
         (remove-hook 'window-selection-change-functions
                      #'eglot-signature--window-change t))))
+
+  ;; Disable popup mode if active
+  (when eglot-signature-popup-mode
+    (eglot-signature-popup-mode -1))
 
   ;; Reset all state
   (setq eglot-signature--debounce-timer nil
@@ -740,7 +745,15 @@ Otherwise, navigate to next signature.  Wraps around at boundaries."
     (define-key map (kbd "<escape>") #'eglot-signature-quit)
     (define-key map (kbd "C-g") #'eglot-signature-quit)
     map)
-  "Transient keymap active while signature help is displayed.")
+  "Keymap for `eglot-signature-popup-mode'.
+Active while signature help is displayed.")
+
+;; Popup Mode
+
+(define-minor-mode eglot-signature-popup-mode
+  "Minor mode active while signature help popup is displayed.
+Provides navigation key bindings for signature overloads."
+  :keymap eglot-signature-popup-map)
 
 ;; Minor Mode
 
