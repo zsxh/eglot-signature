@@ -2,13 +2,13 @@
 
 Signature help (parameter hints) for [Eglot](https://github.com/joaotavora/eglot).
 
-## Screenshot
-
-https://github.com/user-attachments/assets/186159c9-b219-49e1-a724-e9ed0df587cf
-
 ## Description
 
 `eglot-signature` implements the LSP Signature Help protocol to display function signatures with active parameter highlighting when typing function arguments in a child frame popup.
+
+## Screenshot
+
+https://github.com/user-attachments/assets/186159c9-b219-49e1-a724-e9ed0df587cf
 
 ## Features
 
@@ -19,27 +19,37 @@ https://github.com/user-attachments/assets/186159c9-b219-49e1-a724-e9ed0df587cf
 - Child frame popup display
 - Context support for retriggering signature help
 
+## Requirements
+
+- Emacs 30+
+- eglot 1.17+
+
 ## Installation
-
-### Manual
-
-```elisp
-(require 'eglot)
-(require 'eglot-signature)
-(eglot-signature-setup)
-(add-hook 'eglot-managed-mode-hook 'eglot-signature-mode)
-```
 
 ### use-package
 
 ```elisp
 (use-package eglot-signature
   :vc (:url "https://github.com/zsxh/eglot-signature"
-      :rev :newest)
+       :rev :newest)
   :hook (eglot-managed-mode . eglot-signature-mode)
   :init
   (with-eval-after-load 'eglot
     (eglot-signature-setup)))
+```
+
+### Manual
+
+Download `eglot-signature.el` and add it to your `load-path` or install it via `package-vc-install`:
+
+```elisp
+(unless (package-installed-p 'eglot-signature)
+  (package-vc-install
+   '(eglot-signature :url "https://github.com/zsxh/eglot-signature")))
+(require 'eglot)
+(require 'eglot-signature)
+(eglot-signature-setup)
+(add-hook 'eglot-managed-mode-hook 'eglot-signature-mode)
 ```
 
 ### Integration with cape (optional)
@@ -86,13 +96,6 @@ Once enabled, signature help appears automatically when typing function argument
 | `eglot-signature-show-doc` | t | Show documentation |
 | `eglot-signature-show-param-doc` | t | Show parameter documentation |
 | `eglot-signature-debounce-delay` | 0.2 | Request debounce delay in seconds |
-
-## Requirements
-
-- Emacs 30.1 or later
-- compat 30.1.0.0 or later
-- eglot 1.17.30 or later
-- jsonrpc 1.0.24 or later
 
 ## License
 
