@@ -500,14 +500,14 @@ are in pixels.  Height is constrained by `eglot-signature-max-height'
 and separator lines are accounted for with reduced height contribution.
 
 Results are cached in `eglot-signature--cached-frame-size'."
-  (when (and buffer (buffer-live-p buffer))
+  (when (buffer-live-p buffer)
     (with-current-buffer buffer
       (cl-letf* (((window-dedicated-p) nil)
                  ((window-buffer) (current-buffer))
                  (char-height (default-font-height))
                  (max-height-pixel
                   (+ (* char-height eglot-signature-max-height)
-                     (ceiling (* eglot-signature--doc-separator-lines
+                     (ceiling (* (or eglot-signature--doc-separator-lines 0)
                                  char-height
                                  0.1))))
                  (w-width (- (nth 2 w-edges) (nth 0 w-edges)))
@@ -560,15 +560,12 @@ WIDTH-PIXEL, HEIGHT-PIXEL are the dimensions in pixels.
 
 Uses `set-frame-size-and-position-pixelwise' when available for
 pixel-perfect positioning, otherwise falls back to separate
-`set-frame-size' and `set-frame-position' calls.
-Makes frame visible if it was hidden."
+`set-frame-size' and `set-frame-position' calls."
   (if (functionp 'set-frame-size-and-position-pixelwise)
       (let ((frame-resize-pixelwise t))
         (set-frame-size-and-position-pixelwise frame width-pixel height-pixel x y))
     (set-frame-size frame width-pixel height-pixel t)
-    (set-frame-position frame x y))
-  (unless (frame-visible-p frame)
-    (make-frame-visible frame)))
+    (set-frame-position frame x y)))
 
 (defun eglot-signature--make-frame ()
   "Create a child frame for signature help.
@@ -610,29 +607,33 @@ Returns the new frame configured as a popup child frame."
   "Render signature help frame at cursor position.
 Creates or updates child frame with content from SIG-BUF."
   (let* ((sig-changed-p (and sig-buf (buffer-live-p sig-buf)))
-         (w-edges (window-inside-pixel-edges))
-         (buf-size (if sig-changed-p
-                       (eglot-signature--buffer-frame-size sig-buf w-edges)
-                     eglot-signature--cached-frame-size))
-         (cursor-xy (let* ((xy (posn-x-y (posn-at-point)))
+         (parent-win (selected-window))
+         (w-edges (window-inside-pixel-edges parent-win))
+         (cursor-xy (let* ((xy (posn-x-y (posn-at-point (point) parent-win)))
                            (x (+ (nth 0 w-edges) (car xy)))
                            (y (+ (nth 1 w-edges) (cdr xy))))
                       (cons x y)))
+         (frame (if (frame-live-p eglot-signature--active-frame)
+                    eglot-signature--active-frame
+                  (eglot-signature--make-frame)))
+         (win (frame-root-window frame))
+         (_ (when (and sig-changed-p
+                       (not (eq (window-buffer win) sig-buf)))
+              (set-window-buffer win sig-buf)))
+         (buf-size (if sig-changed-p
+                       (eglot-signature--buffer-frame-size sig-buf w-edges)
+                     eglot-signature--cached-frame-size))
          (geometry (eglot-signature--frame-geometry buf-size cursor-xy))
          (x (nth 0 geometry))
          (y (nth 1 geometry))
          (width-pixel (nth 2 geometry))
-         (height-pixel (nth 3 geometry))
-         (frame eglot-signature--active-frame))
-    (unless (and frame (frame-live-p frame))
-      (setq frame (eglot-signature--make-frame)))
-    (let ((win (frame-root-window frame)))
-      (when (or sig-changed-p (or (eq (window-buffer win) sig-buf)))
-        (set-window-buffer win sig-buf)))
+         (height-pixel (nth 3 geometry)))
     (if sig-changed-p
         (eglot-signature--update-frame-size-and-position
          frame x y width-pixel height-pixel)
-      (set-frame-position frame x y))))
+      (set-frame-position frame x y))
+    (unless (frame-visible-p frame)
+      (make-frame-visible frame))))
 
 ;; Debounce Helper
 
