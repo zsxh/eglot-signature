@@ -5,7 +5,7 @@
 ;; Author: zsxh <bnbvbchen@gmail.com>
 ;; Maintainer: zsxh <bnbvbchen@gmail.com>
 ;; URL: https://github.com/zsxh/eglot-signature
-;; Version: 0.1.0
+;; Version: 0.1.1
 ;; Package-Requires: ((emacs "30.1") (compat "30.1.0.0") (eglot "1.17.30") (jsonrpc "1.0.24"))
 ;; Keywords: eglot signature tools
 
@@ -67,6 +67,7 @@
 ;;
 ;;   `eglot-signature-max-height' - Maximum frame height (default: 10 lines)
 ;;   `eglot-signature-max-width' - Maximum frame width (default: 60 chars)
+;;   `eglot-signature-auto-show' - Auto show on trigger characters (default: t)
 ;;   `eglot-signature-show-doc' - Show documentation (default: t)
 ;;   `eglot-signature-show-param-doc' - Show parameter documentation (default: t)
 ;;   `eglot-signature-debounce-delay' - Request debounce delay in seconds (default: 0.2)
@@ -153,6 +154,11 @@
 (defcustom eglot-signature-max-width 60
   "Maximum width of the signature frame in characters."
   :type 'integer
+  :group 'eglot-signature)
+
+(defcustom eglot-signature-auto-show t
+  "Whether to automatically show signature help when typing trigger characters."
+  :type 'boolean
   :group 'eglot-signature)
 
 (defcustom eglot-signature-show-doc t
@@ -676,13 +682,16 @@ retrigger, or content-change trigger."
            (provider eglot-signature--provider)
            (trigger-chars (and provider (plist-get provider :triggerCharacters)))
            (retrigger-chars (and provider (plist-get provider :retriggerCharacters)))
-           (sig-active-p (eglot-signature--sig-active-p)))
+           (sig-active-p (eglot-signature--sig-active-p))
+           (trigger-p (and trigger-chars (seq-contains-p trigger-chars char))))
       (when sig-active-p
         (eglot-signature--render-sig-frame-at-point))
       (cond
-       ((and trigger-chars (seq-contains-p trigger-chars char))
-        (eglot-signature--debounce-request :trigger-character char))
-       ((and sig-active-p retrigger-chars (seq-contains-p retrigger-chars char))
+       ((or (and trigger-p eglot-signature-auto-show)
+            (and sig-active-p
+                 (or trigger-p
+                     (and retrigger-chars
+                          (seq-contains-p retrigger-chars char)))))
         (eglot-signature--debounce-request :trigger-character char))
        (sig-active-p
         (eglot-signature--debounce-request :content-change))
@@ -776,22 +785,24 @@ while a signature is already active (LSP 3.17 SignatureHelpContext)."
 
 (defun eglot-signature--capf-wrapper ()
   "Wrap `eglot-completion-at-point' to trigger signature help on exit."
-  (when-let* ((capf (eglot-completion-at-point)))
-    (cl-destructuring-bind (start end table &rest plist) capf
-      (let ((orig-exit (plist-get plist :exit-function)))
-        (setq plist
-              (plist-put plist :exit-function
-                         (lambda (proxy status)
-                           (when orig-exit
-                             (funcall orig-exit proxy status))
-                           (when (and eglot-signature-mode
-                                      (memq status '(finished exact)))
-                             (when-let* ((lsp-item (get-text-property 0 'eglot--lsp-item proxy))
-                                         (kind (plist-get lsp-item :kind))
-                                         ;; Method, Function, Constructor, Class
-                                         (_ (memq kind '(2 3 4 5))))
-                               (eglot-signature--request :invoked))))))
-        (append (list start end table) plist)))))
+  (let ((capf (eglot-completion-at-point)))
+    (if eglot-signature-auto-show
+        (cl-destructuring-bind (start end table &rest plist) capf
+          (let ((orig-exit (plist-get plist :exit-function)))
+            (setq plist
+                  (plist-put plist :exit-function
+                             (lambda (proxy status)
+                               (when orig-exit
+                                 (funcall orig-exit proxy status))
+                               (when (and eglot-signature-mode
+                                          (memq status '(finished exact)))
+                                 (when-let* ((lsp-item (get-text-property 0 'eglot--lsp-item proxy))
+                                             (kind (plist-get lsp-item :kind))
+                                             ;; Method, Function, Constructor, Class
+                                             (_ (memq kind '(2 3 4 5))))
+                                   (eglot-signature--request :invoked))))))
+            (append (list start end table) plist)))
+      capf)))
 
 (defun eglot-signature--enable ()
   "Enable signature help in current buffer."

@@ -93,6 +93,7 @@ Once enabled, signature help appears automatically when typing function argument
 |--------|---------|-------------|
 | `eglot-signature-max-height` | 10 | Maximum frame height in lines |
 | `eglot-signature-max-width` | 60 | Maximum frame width in characters |
+| `eglot-signature-auto-show` | t | Auto show on trigger characters |
 | `eglot-signature-show-doc` | t | Show documentation |
 | `eglot-signature-show-param-doc` | t | Show parameter documentation |
 | `eglot-signature-debounce-delay` | 0.2 | Request debounce delay in seconds |
