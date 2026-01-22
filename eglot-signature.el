@@ -516,11 +516,12 @@ Results are cached in `eglot-signature--cached-frame-size'."
       (cl-letf* (((window-dedicated-p) nil)
                  ((window-buffer) (current-buffer))
                  (char-height (default-font-height))
+                 (sep-line-count (or eglot-signature--doc-separator-lines 0))
                  (max-height-pixel
                   (+ (* char-height eglot-signature-max-height)
-                     (ceiling (* (or eglot-signature--doc-separator-lines 0)
-                                 char-height
-                                 0.1))))
+                     (if (display-graphic-p)
+                         (ceiling (* sep-line-count char-height 0.1))
+                       sep-line-count)))
                  (w-width (- (nth 2 w-edges) (nth 0 w-edges)))
                  (w-height (- (nth 3 w-edges) (nth 1 w-edges)))
                  (size (window-text-pixel-size
@@ -552,7 +553,7 @@ Horizontally adjusts to prevent frame overflow beyond frame width."
          (cursor-x (car cursor-xy))
          (cursor-y (cdr cursor-xy))
          (fw (frame-pixel-width))
-         (padding 4)
+         (padding (if (display-graphic-p) 4 0))
          (x (if (> (+ cursor-x width-pixel padding) fw)
                 (- fw width-pixel padding)
               cursor-x))
@@ -612,6 +613,8 @@ Returns the new frame configured as a popup child frame."
     (setq eglot-signature--active-frame frame)
     (set-face-attribute 'internal-border frame :background border-color)
     (set-face-attribute 'child-frame-border frame :background border-color)
+    (unless (display-graphic-p)
+      (select-frame-set-input-focus parent))
     frame))
 
 (defun eglot-signature--render-sig-frame-at-point (&optional sig-buf)
