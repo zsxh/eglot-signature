@@ -1,7 +1,7 @@
 ;; -*- mode: eask; lexical-binding: t -*-
 
 (package "eglot-signature"
-         "0.1.1"
+         "0.1.2"
          "Signature help for Eglot")
 
 (website-url "https://github.com/zsxh/eglot-signature")

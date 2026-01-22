@@ -5,7 +5,7 @@
 ;; Author: zsxh <bnbvbchen@gmail.com>
 ;; Maintainer: zsxh <bnbvbchen@gmail.com>
 ;; URL: https://github.com/zsxh/eglot-signature
-;; Version: 0.1.1
+;; Version: 0.1.2
 ;; Package-Requires: ((emacs "30.1") (compat "30.1.0.0") (eglot "1.17.30") (jsonrpc "1.0.24"))
 ;; Keywords: eglot signature tools
 
