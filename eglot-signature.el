@@ -309,7 +309,6 @@ lifetime and interactivity of the signature frame."
   "Quit signature help display."
   (let ((timer eglot-signature--debounce-timer)
         (frame eglot-signature--active-frame)
-        (doc-buf eglot-signature--doc-buffer)
         (active-buf eglot-signature--active-buffer))
 
     ;; Cancel pending timer
@@ -319,13 +318,6 @@ lifetime and interactivity of the signature frame."
     ;; Hide frame
     (when (and frame (frame-live-p frame))
       (make-frame-invisible frame))
-
-    ;; Clear doc buffer
-    (when (buffer-live-p doc-buf)
-      (unless (get-buffer-window doc-buf)
-        (with-current-buffer doc-buf
-          (let ((inhibit-read-only t))
-            (erase-buffer)))))
 
     ;; Remove hooks from active buffer
     (when (buffer-live-p active-buf)
