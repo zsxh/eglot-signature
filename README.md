@@ -1,4 +1,4 @@
-# eglot-signature (WIP)
+# eglot-signature
 
 Signature help (parameter hints) for [Eglot](https://github.com/joaotavora/eglot).
 
@@ -8,7 +8,7 @@ Signature help (parameter hints) for [Eglot](https://github.com/joaotavora/eglot
 
 ## Screenshot
 
-https://github.com/user-attachments/assets/186159c9-b219-49e1-a724-e9ed0df587cf
+https://github.com/user-attachments/assets/5cd9dae2-a49c-4cec-9f60-e908fe972543
 
 ## Features
 
