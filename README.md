@@ -8,6 +8,8 @@ Signature help (parameter hints) for [Eglot](https://github.com/joaotavora/eglot
 
 ## Screenshot
 
+![Screenshot](https://github.com/user-attachments/assets/7a69f477-5426-469c-8696-65a22f3e957f)
+
 https://github.com/user-attachments/assets/5cd9dae2-a49c-4cec-9f60-e908fe972543
 
 ## Features
